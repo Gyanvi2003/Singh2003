@@ -1,31 +1,25 @@
 const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
+const crypto = require("crypto");
 
-class CatFileCommand {
-  constructor(folder, file, commitSHA) {
-    this.folder = folder;
-    this.file = file;
-    this.commitSHA = commitSHA;
+const command = process.argv[2];
+
+if (command === "cat-file" && process.argv[3] === "-p") {
+  const hash = process.argv[4];
+  const dir = hash.slice(0, 2);
+  const file = hash.slice(2);
+  const objectPath = path.join(".git", "objects", dir, file);
+
+  if (!fs.existsSync(objectPath)) {
+    throw new Error(`Not a valid object name ${hash}`);
   }
 
-  execute() {
-    const completePath = path.join(
-      process.cwd(),
-      ".git",
-      "objects",
-      this.folder,
-      this.file
-    );
+  const compressed = fs.readFileSync(objectPath);
+  const decompressed = zlib.inflateSync(compressed);
+  const content = decompressed.toString();
 
-    if (!fs.existsSync(completePath)) {
-      throw new Error(`Not a valid object name ${this.commitSHA}`);
-    }
-
-    const fileContents = fs.readFileSync(completePath);
-    const outputBuffer = zlib.inflateSync(fileContents);
-    const output = outputBuffer.toString().split("\x00")[1];
-
-    process.stdout.write(output); 
-  }
+  // Remove header like "blob 123\0"
+  const actualContent = content.slice(content.indexOf("\0") + 1);
+  process.stdout.write(actualContent);
 }
