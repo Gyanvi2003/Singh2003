@@ -3,35 +3,32 @@ const path = require("path");
 const zlib = require("zlib");
 const crypto = require("crypto");
 
-// Debug: show all command-line args
-console.log("Full args:", process.argv);
-
-const command = process.argv[2]?.trim(); // trim in case of extra spaces or \r
-
-// More debug info
-console.log("DEBUG: Raw command =", process.argv[2]);
-console.log("DEBUG: Trimmed command =", command);
-console.log("DEBUG: Type of command =", typeof command);
+const command = process.argv[2];
 
 switch (command) {
   case "init":
-    console.log("Command matched: init");
     createGitDirectory();
     break;
 
   case "hash-object":
-    console.log("Command matched: hash-object");
-    const writeFlag = process.argv[3];
-    const filePath = process.argv[4];
-    if (writeFlag === "-w" && filePath) {
+    if (process.argv[3] === "-w" && process.argv[4]) {
+      const filePath = process.argv[4];
       hashObject(filePath);
     } else {
       console.error("Usage: hash-object -w <file>");
     }
     break;
 
+  case "cat-file":
+    if (process.argv[3] === "-p" && process.argv[4]) {
+      const hash = process.argv[4];
+      catFile(hash);
+    } else {
+      console.error("Usage: cat-file -p <hash>");
+    }
+    break;
+
   default:
-    console.log("Command not recognized, throwing error.");
     throw new Error(`Unknown command ${command}`);
 }
 
@@ -49,13 +46,31 @@ function hashObject(filePath) {
   const blob = Buffer.concat([Buffer.from(header), content]);
   const hash = crypto.createHash("sha1").update(blob).digest("hex");
 
-  const dir = hash.substring(0, 2);
-  const file = hash.substring(2);
-  const objPath = path.join(".git", "objects", dir);
-  const objFile = path.join(objPath, file);
+  const dir = hash.slice(0, 2);
+  const file = hash.slice(2);
+  const objDir = path.join(".git", "objects", dir);
+  const objPath = path.join(objDir, file);
 
-  fs.mkdirSync(objPath, { recursive: true });
-  fs.writeFileSync(objFile, zlib.deflateSync(blob));
+  fs.mkdirSync(objDir, { recursive: true });
+  fs.writeFileSync(objPath, zlib.deflateSync(blob));
 
   console.log(hash);
+}
+
+function catFile(hash) {
+  const dir = hash.slice(0, 2);
+  const file = hash.slice(2);
+  const objectPath = path.join(".git", "objects", dir, file);
+
+  if (!fs.existsSync(objectPath)) {
+    throw new Error(`Not a valid object name ${hash}`);
+  }
+
+  const compressed = fs.readFileSync(objectPath);
+  const decompressed = zlib.inflateSync(compressed);
+  const result = decompressed.toString();
+  const nullIndex = result.indexOf("\0");
+  const content = result.slice(nullIndex + 1);
+
+  process.stdout.write(content);
 }
