@@ -24,8 +24,8 @@ class CatFileCommand {
 
     const fileContents = fs.readFileSync(completePath);
     const outputBuffer = zlib.inflateSync(fileContents);
-    const output = outputBuffer.toString();
+    const output = outputBuffer.toString().split("\x00")[1];
 
-    process.stdout.write(output.split("\0")[1]); // Skip "blob <size>\0"
+    process.stdout.write(output); 
   }
 }
